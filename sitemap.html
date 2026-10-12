@@ -18,13 +18,17 @@
             padding: 0;
             background-color: #1f1f1f;
         }
-        .site-label {
-            color: #ffffff;
+        .site-badge {
+            background-color: #fbc02d;
+            color: #000;
+            padding: 4px 8px;
+            border-radius: 6px;
             font-weight: bold;
-            font-size: 14px;
-            font-family: Arial, sans-serif;
-            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+            font-size: 11px;
             white-space: nowrap;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            border: 2px solid #ffffff;
+            text-align: center;
         }
         .leaflet-popup-content-wrapper {
             background: #2b2b2b;
@@ -38,6 +42,24 @@
         }
         .leaflet-popup-tip {
             background: #2b2b2b;
+        }
+        /* Стили для кнопки геолокации */
+        .leaflet-control-locate {
+            background-color: #2b2b2b !important;
+            color: #fff !important;
+            border: 2px solid rgba(0,0,0,0.2);
+            border-radius: 6px;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+        .leaflet-control-locate:hover {
+            background-color: #383838 !important;
         }
     </style>
 </head>
@@ -65,6 +87,7 @@
             return points;
         }
 
+        // Получаем параметры из URL[cite: 18]
         const urlParams = new URLSearchParams(window.location.search);
         const rawData = urlParams.get('data');
 
@@ -78,40 +101,24 @@
         const target = points[0];
         const map = L.map('map').setView([target.lat, target.lon], 16);
 
-        // 1. Создаем слои карт
-        const streetLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=ru', {
+        // Подключаем тайлы Google Карт[cite: 18]
+        L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=ru', {
             maxZoom: 20,
             subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
             attribution: '&copy; Google Maps'
-        });
-
-        const satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}&hl=ru', {
-            maxZoom: 20,
-            subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-            attribution: '&copy; Google Maps'
-        });
-
-        // Устанавливаем Схему улиц слоем по умолчанию
-        streetLayer.addTo(map);
-
-        // Добавляем переключатель слоев в правый верхний угол
-        const baseMaps = {
-            "🗺️ Схема": streetLayer,
-            "🛰️ Спутник": satelliteLayer
-        };
-        L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+        }).addTo(map);
 
         let azimuths = target.azimuths || [];
         if (azimuths.length === 0 && target.azimuth) {
             azimuths = String(target.azimuth).split('-').map(a => parseInt(a.trim())).filter(n => !isNaN(n));
         }
 
-        const sectorColors = ['#ff7043', '#42a5f5', '#66bb6a', '#ab47bc'];
+        const sectorColors = ['#2e7d32', '#1565c0', '#ef6c00', '#7b1fa2'];
 
         azimuths.forEach((az, index) => {
             let color = sectorColors[index % sectorColors.length];
             let sectorCoords = getSectorPoints(target.lat, target.lon, az, 130, 65);
-            
+
             L.polygon(sectorCoords, {
                 color: color,
                 fillColor: color,
@@ -120,42 +127,65 @@
             }).addTo(map);
         });
 
-        // Желтая булавка (пин) на координатах мачты
-        const pinIcon = L.divIcon({
-            className: 'pin-icon',
-            html: `<div style="font-size: 20px; line-height: 20px; text-align: center; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));">📌</div>`,
-            iconSize: [20, 20],
-            iconAnchor: [10, 20]
+        const customIcon = L.divIcon({
+            className: 'custom-site-icon',
+            html: `<div class="site-badge">📍 ${target.site_id}</div>`,
+            iconSize: [80, 30],
+            iconAnchor: [40, 15]
         });
-        L.marker([target.lat, target.lon], { icon: pinIcon }).addTo(map);
 
-        // Название SiteID рядом
-        const labelIcon = L.divIcon({
-            className: 'site-label-icon',
-            html: `<div class="site-label">${target.site_id}</div>`,
-            iconSize: [100, 20],
-            iconAnchor: [-10, 15]
-        });
-        
-        const textMarker = L.marker([target.lat, target.lon], { icon: labelIcon }).addTo(map);
+        const marker = L.marker([target.lat, target.lon], { icon: customIcon }).addTo(map);
 
         const popupContent = `
             <b>🆔 SiteID:</b> ${target.site_id}<br>
             <b>🏢 Nomi:</b> ${target.name || '—'}<br>
             <b>📍 Manzil:</b> ${target.adress || '—'}<br>
             <b>🌐 Koordinata:</b> ${target.lat}, ${target.lon}<br>
-            <b>📶 Texnologiya:</b><br>
-            &nbsp;&nbsp;2G: ${target.g2 || '—'}<br>
-            &nbsp;&nbsp;3G: ${target.g3 || '—'}<br>
-            &nbsp;&nbsp;4G: ${target.g4 || '—'}<br>
-            &nbsp;&nbsp;5G: ${target.g5 || '—'}<br>
+            <b>📶 Texnologiya:</b>2G: ${target.g2 || '—'}&nbsp;3G: ${target.g3 || '—'}&nbsp;&nbsp;4G: ${target.g4 || '—'}&nbsp;&nbsp;5G: ${target.g5 || '—'}<br>
             <b>🗼 Machta:</b> ${target.mast_type || '—'}, ${target.mast_hight || '—'}м<br>
             <b>🧭 Azimut:</b> ${target.azimuth || '—'}<br>
             <b>⚙️ BBU:</b> ${target.bbu || '—'}<br>
             <b>🔗 Transport:</b> ${target.transport || '—'}
         `;
-        
-        textMarker.bindPopup(popupContent);
+        marker.bindPopup(popupContent);
+
+        // ДОБАВЛЕНИЕ КНОПКИ ТЕКУЩЕЙ ПОЗИЦИИ
+        const LocateControl = L.Control.extend({
+            options: { position: 'topright' },
+            onAdd: function(map) {
+                const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                const btn = L.DomUtil.create('button', 'leaflet-control-locate', container);
+                btn.innerHTML = '📍';
+                btn.title = 'Текущая позиция';
+
+                L.DomEvent.on(btn, 'click', function(e) {
+                    L.DomEvent.stopPropagation(e);
+                    map.locate({ setView: true, maxZoom: 16 });
+                });
+
+                return container;
+            }
+        });
+        map.addControl(new LocateControl());
+
+        let userLocationMarker = null;
+        map.on('locationfound', function(e) {
+            if (userLocationMarker) {
+                map.removeLayer(userLocationMarker);
+            }
+            userLocationMarker = L.marker(e.latlng, {
+                icon: L.divIcon({
+                    className: 'custom-site-icon',
+                    html: `<div class="site-badge" style="background-color: #0288d1; color: #fff;">📍 Вы здесь</div>`,
+                    iconSize: [80, 30],
+                    iconAnchor: [40, 15]
+                })
+            }).addTo(map).bindPopup("Ваше текущее местоположение").openPopup();
+        });
+
+        map.on('locationerror', function(e) {
+            alert("Не удалось определить геолокацию. Проверьте разрешения устройства.");
+        });
     </script>
 </body>
 </html>
