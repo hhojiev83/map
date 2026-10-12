@@ -18,7 +18,6 @@
             padding: 0;
             background-color: #1f1f1f;
         }
-        /* Стиль для чистого текста SiteID с черной обводкой для читаемости */
         .site-label {
             color: #ffffff;
             font-weight: bold;
@@ -47,7 +46,6 @@
     <div id="map"></div>
 
     <script>
-        // Функция для расчета координат точек лепестка (сектора)
         function getSectorPoints(lat, lon, azimuth, radiusMeters = 120, fov = 60) {
             const rad = Math.PI / 180;
             const R = 6378137;
@@ -80,11 +78,28 @@
         const target = points[0];
         const map = L.map('map').setView([target.lat, target.lon], 16);
 
-        L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}&hl=ru', {
+        // 1. Создаем слои карт
+        const streetLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=ru', {
             maxZoom: 20,
             subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
             attribution: '&copy; Google Maps'
-        }).addTo(map);
+        });
+
+        const satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}&hl=ru', {
+            maxZoom: 20,
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+            attribution: '&copy; Google Maps'
+        });
+
+        // Устанавливаем Схему улиц слоем по умолчанию
+        streetLayer.addTo(map);
+
+        // Добавляем переключатель слоев в правый верхний угол
+        const baseMaps = {
+            "🗺️ Схема": streetLayer,
+            "🛰️ Спутник": satelliteLayer
+        };
+        L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
 
         let azimuths = target.azimuths || [];
         if (azimuths.length === 0 && target.azimuth) {
@@ -93,7 +108,6 @@
 
         const sectorColors = ['#ff7043', '#42a5f5', '#66bb6a', '#ab47bc'];
 
-        // Отрисовка секторов антенн
         azimuths.forEach((az, index) => {
             let color = sectorColors[index % sectorColors.length];
             let sectorCoords = getSectorPoints(target.lat, target.lon, az, 130, 65);
@@ -106,26 +120,25 @@
             }).addTo(map);
         });
 
-        // 1. Желтая кнопка (иконка канцелярской кнопки) строго на координате сайта
+        // Желтая булавка (пин) на координатах мачты
         const pinIcon = L.divIcon({
             className: 'pin-icon',
             html: `<div style="font-size: 20px; line-height: 20px; text-align: center; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));">📌</div>`,
             iconSize: [20, 20],
-            iconAnchor: [10, 20] // Центрируем острие иконки по координате
+            iconAnchor: [10, 20]
         });
         L.marker([target.lat, target.lon], { icon: pinIcon }).addTo(map);
 
-        // 2. Текстовая надпись SiteID рядом (без фона и лишней иконки)
+        // Название SiteID рядом
         const labelIcon = L.divIcon({
             className: 'site-label-icon',
             html: `<div class="site-label">${target.site_id}</div>`,
             iconSize: [100, 20],
-            iconAnchor: [-10, 15] // Смещаем правее и чуть ниже пина
+            iconAnchor: [-10, 15]
         });
         
         const textMarker = L.marker([target.lat, target.lon], { icon: labelIcon }).addTo(map);
 
-        // Подробная информация во всплывающем окне по клику на текст или пин
         const popupContent = `
             <b>🆔 SiteID:</b> ${target.site_id}<br>
             <b>🏢 Nomi:</b> ${target.name || '—'}<br>
