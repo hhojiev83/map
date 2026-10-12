@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Карта сайтов</title>
+    <!-- Telegram Web App SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: #1f1f1f;
+        }
+        .site-badge {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 11px;
+            white-space: nowrap;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            border: 2px solid #ffffff;
+            text-align: center;
+        }
+        .dist-label {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            color: #333;
+            border: 1px solid #ccc;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <script>
+        // Получаем параметры из URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const rawData = urlParams.get('data');
+
+        if (!rawData) {
+            alert("Данные не переданы!");
+        }
+
+        const points = JSON.parse(decodeURIComponent(rawData));
+        if (points.length === 0) window.close();
+
+        // Инициализация карты с центром по первой точке
+        const map = L.map('map').setView([points[0].lat, points[0].lon], 13);
+
+        // Подключаем тайлы Google Карт на русском языке (hl=ru)
+        L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=ru', {
+            maxZoom: 20,
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+            attribution: '&copy; Google Maps'
+        }).addTo(map);
+
+        let firstCoords = null;
+        const allBounds = [];
+
+        points.forEach((pt) => {
+            const coords = [pt.lat, pt.lon];
+            allBounds.push(coords);
+
+            // Цвета по вашему условию: 1-я точка — желтая, остальные — красные
+            const bgColor = pt.is_target ? '#fbc02d' : '#e53935';
+            const textColor = pt.is_target ? '#000' : '#fff';
+
+            // Кастомный маркер с надписью SiteId
+            const customIcon = L.divIcon({
+                className: 'custom-site-icon',
+                html: `<div class="site-badge" style="background-color: ${bgColor}; color: ${textColor};">${pt.site_id}</div>`,
+                iconSize: [70, 30],
+                iconAnchor: [35, 15]
+            });
+
+            const marker = L.marker(coords, { icon: customIcon }).addTo(map);
+
+            // Всплывающая подсказка при клике
+            marker.bindPopup(`<b>SiteID: ${pt.site_id}</b><br>Название: ${pt.name}<br>Расстояние: ${pt.dist} м`);
+
+            if (pt.is_target) {
+                firstCoords = coords;
+            } else if (firstCoords) {
+                // Рисуем линию от первой точки к остальным
+                L.polyline([firstCoords, coords], {
+                    color: '#1e88e5',
+                    weight: 3,
+                    opacity: 0.8,
+                    dashArray: '6, 6'
+                }).addTo(map);
+
+                // Добавляем метку с расстоянием посередине линии
+                const midLat = (firstCoords[0] + coords[0]) / 2;
+                const midLng = (firstCoords[1] + coords[1]) / 2;
+
+                const distIcon = L.divIcon({
+                    className: 'dist-icon',
+                    html: `<div class="dist-label">${pt.dist} м</div>`,
+                    iconSize: [60, 20],
+                    iconAnchor: [30, 10]
+                });
+
+                L.marker([midLat, midLng], { icon: distIcon }).addTo(map);
+            }
+        });
+
+        // Автоматически масштабируем карту, чтобы были видны все точки
+        if (allBounds.length > 0) {
+            map.fitBounds(L.latLngBounds(allBounds), { padding: [60, 60] });
+        }
+    </script>
+</body>
+</html>
